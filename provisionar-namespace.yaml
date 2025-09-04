@@ -1,0 +1,57 @@
+---
+- name: Provisionar namespace de cliente no OpenShift
+  hosts: localhost
+  collections:
+    - kubernetes.core
+
+  vars:
+    app_name: "{{ survey_app_name }}"
+    git_repo: "{{ survey_git_repo }}"
+    git_branch: "{{ survey_git_branch | default('main') }}"
+    cpu_request: "{{ survey_cpu | default('500m') }}"
+    mem_request: "{{ survey_mem | default('512Mi') }}"
+    storage_size: "{{ survey_storage | default('1Gi') }}"
+    hostname: "{{ survey_hostname | default(app_name ~ '.apps.cloudplus.algar') }}"
+
+  tasks:
+    - name: Criar namespace
+      k8s:
+        api_version: v1
+        kind: Namespace
+        name: "{{ app_name }}"
+
+    - name: Criar quota de recursos
+      k8s:
+        definition:
+          apiVersion: v1
+          kind: ResourceQuota
+          metadata:
+            name: quota-{{ app_name }}
+            namespace: "{{ app_name }}"
+          spec:
+            hard:
+              requests.cpu: "{{ cpu_request }}"
+              requests.memory: "{{ mem_request }}"
+              requests.storage: "{{ storage_size }}"
+
+    - name: Criar aplicação com GitOps (ArgoCD)
+      k8s:
+        definition:
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: "{{ app_name }}"
+            namespace: openshift-gitops
+          spec:
+            project: default
+            source:
+              repoURL: "{{ git_repo }}"
+              targetRevision: "{{ git_branch }}"
+              path: .
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: "{{ app_name }}"
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true

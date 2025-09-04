@@ -1,0 +1,100 @@
+---
+- name: Provisionar CaaS para cliente no OpenShift
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - kubernetes.core
+
+  vars:
+    app_name: "{{ survey_app_name }}"
+    git_repo: "{{ survey_git_repo }}"
+    git_branch: "{{ survey_git_branch | default('main') }}"
+    cpu_request: "{{ survey_cpu | default('500m') }}"
+    mem_request: "{{ survey_mem | default('512Mi') }}"
+    storage_size: "{{ survey_storage | default('1Gi') }}"
+    hostname: "{{ survey_hostname | default(app_name ~ '.apps.cloudplus.algar') }}"
+
+  tasks:
+    - name: Criar namespace do cliente
+      k8s:
+        api_version: v1
+        kind: Namespace
+        name: "{{ app_name }}"
+
+    - name: Criar quota de recursos
+      k8s:
+        definition:
+          apiVersion: v1
+          kind: ResourceQuota
+          metadata:
+            name: quota-{{ app_name }}
+            namespace: "{{ app_name }}"
+          spec:
+            hard:
+              requests.cpu: "{{ cpu_request }}"
+              requests.memory: "{{ mem_request }}"
+              requests.storage: "{{ storage_size }}"
+
+    - name: Criar limites de recursos (opcional, controla pod a pod)
+      k8s:
+        definition:
+          apiVersion: v1
+          kind: LimitRange
+          metadata:
+            name: limits-{{ app_name }}
+            namespace: "{{ app_name }}"
+          spec:
+            limits:
+              - default:
+                  cpu: "{{ cpu_request }}"
+                  memory: "{{ mem_request }}"
+                defaultRequest:
+                  cpu: "{{ cpu_request }}"
+                  memory: "{{ mem_request }}"
+                type: Container
+
+    - name: Criar ServiceAccount para o cliente
+      k8s:
+        api_version: v1
+        kind: ServiceAccount
+        namespace: "{{ app_name }}"
+        name: sa-{{ app_name }}
+
+    - name: Dar permissões básicas ao ServiceAccount
+      k8s:
+        definition:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: rb-{{ app_name }}
+            namespace: "{{ app_name }}"
+          subjects:
+            - kind: ServiceAccount
+              name: sa-{{ app_name }}
+              namespace: "{{ app_name }}"
+          roleRef:
+            kind: ClusterRole
+            name: edit
+            apiGroup: rbac.authorization.k8s.io
+
+    - name: Criar aplicação GitOps no ArgoCD
+      k8s:
+        definition:
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: "{{ app_name }}"
+            namespace: openshift-gitops
+          spec:
+            project: default
+            source:
+              repoURL: "{{ git_repo }}"
+              targetRevision: "{{ git_branch }}"
+              path: .
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: "{{ app_name }}"
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
