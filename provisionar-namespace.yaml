@@ -12,6 +12,7 @@
     mem_request: "{{ survey_mem | default('512Mi') }}"
     storage_size: "{{ survey_storage | default('1Gi') }}"
     hostname: "{{ survey_hostname | default(app_name ~ '.apps.cluster-vrvdw-1.dynamic.redhatworkshops.io') }}"
+    git_path: "{{ survey_path }}"
 
   tasks:
     - name: Criar namespace
@@ -42,6 +43,7 @@
           metadata:
             name: "{{ app_name }}"
             namespace: openshift-gitops
+            path: "{{ git_path}}"
           spec:
             project: default
             source:
