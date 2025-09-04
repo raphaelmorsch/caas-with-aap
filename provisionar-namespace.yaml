@@ -11,7 +11,7 @@
     cpu_request: "{{ survey_cpu | default('500m') }}"
     mem_request: "{{ survey_mem | default('512Mi') }}"
     storage_size: "{{ survey_storage | default('1Gi') }}"
-    hostname: "{{ survey_hostname | default(app_name ~ '.apps.cloudplus.algar') }}"
+    hostname: "{{ survey_hostname | default(app_name ~ '.apps.cluster-vrvdw-1.dynamic.redhatworkshops.io') }}"
 
   tasks:
     - name: Criar namespace
