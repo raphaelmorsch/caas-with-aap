@@ -49,7 +49,7 @@
             source:
               repoURL: "{{ git_repo }}"
               targetRevision: "{{ git_branch }}"
-              path: .
+              path: "{{ git_path }}"
             destination:
               server: https://kubernetes.default.svc
               namespace: "{{ app_name }}"
